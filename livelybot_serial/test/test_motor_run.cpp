@@ -101,39 +101,41 @@ void ankle_inverse_kinematics(double theta_p, double theta_r, double &theta_uppe
     }
 }
 
+class TestMotorNode : public rclcpp::Node
+{
+public:
+    TestMotorNode() : Node("test_motor")
+    {
+        rb_ = std::make_unique<livelybot_serial::robot>(this);
+        RCLCPP_INFO(this->get_logger(), "\033[1;32mSTART\033[0m");
+
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(2), std::bind(&TestMotorNode::timer_callback, this));
+    }
+
+private:
+    void timer_callback()
+    {
+        for (motor *m : rb_->Motors)
+        {   
+            RCLCPP_INFO(this->get_logger(), "id %d pos %f vel %f tqe %f\n", m->get_current_motor_state()->ID, m->get_current_motor_state()->position, m->get_current_motor_state()->velocity, m->get_current_motor_state()->torque);
+        }
+        ankle_inverse_kinematics(0.3, 0, motor0_, motor1_);
+        rb_->Motors[0]->fresh_cmd_int16((float)motor0_, 0, 0, 10, 0, 1, 0, 0, 0);
+        rb_->Motors[1]->fresh_cmd_int16((float)motor1_, 0, 0, 10, 0, 1, 0, 0, 0);       
+        rb_->motor_send_2();
+    }
+
+    std::unique_ptr<livelybot_serial::robot> rb_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    double motor0_ = 0.0;
+    double motor1_ = 0.0;
+};
+
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    auto node = rclcpp::Node::make_shared("test_motor");
-    rclcpp::Rate rate(500.0);
-    livelybot_serial::robot rb(node.get());
-    RCLCPP_INFO(node->get_logger(), "\033[1;32mSTART\033[0m");
-    // ========================== singlethread send =====================
-    float derta = 0.01;//角度
-    int cont = 0;
-    float angle = 0.0;
-    double motor0 = 0.0;
-    double motor1 = 0.0;
-    while (rclcpp::ok()) // 此用法为逐个电机发送控制指令
-    {
-        /////////////////////////send
-        // for (motor *m : rb.Motors)
-        // {   
-        //     RCLCPP_INFO(node->get_logger(), "id %d pos %f vel %f tqe %f\n", m->get_current_motor_state()->ID, m->get_current_motor_state()->position, m->get_current_motor_state()->velocity, m->get_current_motor_state()->torque);
-        //     printf("%4.2f ", m->get_current_motor_state()->position);
-        //     // m->fresh_cmd_int16(0, 0, 0, 5.0, 0, 0, 0.1, 0, 0.5);
-        //     m->fresh_cmd_int16(0, 0, 0, 1, 0, 0, 0, 0, 0);
-        // }
-        // RCLCPP_INFO(node->get_logger(), " ");
-        ankle_inverse_kinematics(0.3, 0, motor0, motor1);
-        rb.Motors[0]->fresh_cmd_int16((float)motor0, 0, 0, 10, 0, 1, 0, 0, 0);
-        rb.Motors[1]->fresh_cmd_int16((float)motor1, 0, 0, 10, 0, 1, 0, 0, 0);       
-        rb.motor_send_2();
-
-        rclcpp::spin_some(node);
-        rate.sleep();
-    }
-
+    auto node = std::make_shared<TestMotorNode>();
+    rclcpp::spin(node);
     RCLCPP_INFO(node->get_logger(), "END"); 
     rclcpp::shutdown();
     return 0;
