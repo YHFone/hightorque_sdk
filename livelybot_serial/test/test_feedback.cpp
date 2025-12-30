@@ -1,10 +1,12 @@
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 #include "../include/serial_struct.h"
 #include "../include/hardware/robot.h"
-#include <iostream>
-#include <thread>
 #include <condition_variable>
-#include "std_msgs/Float32MultiArray.h"
+#include <iostream>
+#include <string>
+#include <thread>
+#include <vector>
+#include "std_msgs/msg/float32_multi_array.hpp"
 
 enum test_mode
 {
@@ -16,27 +18,27 @@ enum test_mode
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "test_feedback");
-    ros::NodeHandle n;
-    ros::Rate r(300);
-    livelybot_serial::robot rb;
-    ros::Publisher pub = n.advertise<std_msgs::Float32MultiArray>("feedback_formulate", 1000);
-    ROS_INFO("\033[1;32mSTART\033[0m");
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("test_feedback");
+    rclcpp::Rate rate(300.0);
+    livelybot_serial::robot rb(node.get());
+    auto pub = node->create_publisher<std_msgs::msg::Float32MultiArray>("feedback_formulate", rclcpp::QoS(10));
+    RCLCPP_INFO(node->get_logger(), "\033[1;32mSTART\033[0m");
     // ========================== singlethread send =====================
     int cont = 0;
     test_mode mode_=kp;
     std::vector<std::string> motor_name{"null","5046","4538","5047_36","5047_9"}; 
-    ROS_INFO("motor num %ld" ,rb.Motors.size());
+    RCLCPP_INFO(node->get_logger(), "motor num %zu" ,rb.Motors.size());
    float kp_mode_kp=1;
    float kp_mode_pos=0;
    float kd_mode_vel=0;
    float kd_mode_kd=0.1;
    float ff_=0.5;
    
-    while (ros::ok()) // 此用法为逐个电机发送控制指令
+    while (rclcpp::ok()) // 此用法为逐个电机发送控制指令
     {
         /////////////////////////send
-        std_msgs::Float32MultiArray feedback_;
+        std_msgs::msg::Float32MultiArray feedback_;
 
         for (motor *m : rb.Motors)
         {
@@ -87,15 +89,17 @@ int main(int argc, char **argv)
             //                 " type: " << motor_name[static_cast<int>(rb.Motors[idx++]->get_motor_enum_type())]
             //                 );
         }
-        pub.publish(feedback_);
+        pub->publish(feedback_);
         
         cont++;
-        ROS_INFO("%d",cont);
+        RCLCPP_INFO(node->get_logger(), "%d",cont);
         if (cont==300000)
         {
             break;
         }
-        r.sleep();
+        rclcpp::spin_some(node);
+        rate.sleep();
     }
+    rclcpp::shutdown();
     return 0;
 }

@@ -1,20 +1,18 @@
-#include <ros/ros.h>
-#include <sensor_msgs/JointState.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include "robot_node.h"
+#include <memory>
 
 int main(int argc, char** argv)
 {
-    // 初始化ROS节点
-    ros::init(argc, argv, "joint_state_listener");
-    ros::NodeHandle nh;
-    
+    // 初始化ROS2节点
+    rclcpp::init(argc, argv);
 
-    // 创建一个订阅者对象，订阅名为"joint_states"的topic，队列长度设置为10
-    livelybot_serial::robot_node rbn;
-    
+    auto node = std::make_shared<livelybot_serial::robot_node>();
 
-    // 进入ROS事件循环
-    ros::spin();
+    // 进入ROS2事件循环
+    rclcpp::spin(node);
 
+    rclcpp::shutdown();
     return 0;
 }

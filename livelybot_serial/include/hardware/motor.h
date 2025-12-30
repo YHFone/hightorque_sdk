@@ -1,9 +1,12 @@
 #ifndef _MOTOR_H_
 #define _MOTOR_H_
 #include "../serial_struct.h"
+#include <algorithm>
 #include <stdint.h>
-#include "ros/ros.h"
-#include "livelybot_msg/MotorState.h"
+#include <stdexcept>
+#include <string>
+#include "rclcpp/rclcpp.hpp"
+#include "livelybot_msg/msg/motor_state.hpp"
 
 #define my_2pi (6.28318530717f)
 #define my_pi (3.14159265358f)
@@ -31,10 +34,11 @@ class motor
 {
 private:
     int type, id, num, CANport_num, CANboard_num, iid;
-    ros::NodeHandle n;
+    rclcpp::Node * node_;
+    rclcpp::Logger logger_;
     motor_back_t data;
-    ros::Publisher _motor_pub;
-    livelybot_msg::MotorState p_msg;
+    rclcpp::Publisher<livelybot_msg::msg::MotorState>::SharedPtr motor_pub_;
+    livelybot_msg::msg::MotorState p_msg;
     std::string motor_name;
     motor_type type_ = motor_type::null;
     cdc_tr_message_s *p_cdc_tx_message = NULL;
@@ -47,51 +51,38 @@ public:
     motor_pos_val_tqe_rpd_s cmd_int16_5param;
 
     cdc_acm_rx_message_t cmd;
-    motor(int _motor_num, int _CANport_num, int _CANboard_num, cdc_tr_message_s *_p_cdc_tx_message, int _id_max) : CANport_num(_CANport_num), CANboard_num(_CANboard_num), p_cdc_tx_message(_p_cdc_tx_message), id_max(_id_max)
+    motor(int _motor_num, int _CANport_num, int _CANboard_num, cdc_tr_message_s *_p_cdc_tx_message, int _id_max, rclcpp::Node * node)
+        : CANport_num(_CANport_num), CANboard_num(_CANboard_num), node_(node),
+          logger_(node ? node->get_logger() : rclcpp::get_logger("livelybot_motor")),
+          p_cdc_tx_message(_p_cdc_tx_message), id_max(_id_max)
     {
-        if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/name", motor_name))
+        if (node_ == nullptr)
         {
-            // ROS_INFO("Got params name: %s",motor_name);
+            throw std::runtime_error("motor requires a valid rclcpp::Node pointer");
         }
-        else
-        {
-            ROS_ERROR("Faile to get params name");
-        }
-        _motor_pub = n.advertise<livelybot_msg::MotorState>("/livelybot_real_real/" + motor_name + "_controller/state", 1);
 
-        if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/id", id))
-        {
-            // ROS_INFO("Got params id: %d",id);
-        }
-        else
-        {
-            ROS_ERROR("Faile to get params id");
-        }
-        if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/type", type))
-        {
-            // ROS_INFO("Got params type: %d",type);
-        }
-        else
-        {
-            ROS_ERROR("Faile to get params type");
-        }
-        if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/num", num))
-        {
-            // ROS_INFO("Got params num: %d",num);
-        }
-        else
-        {
-            ROS_ERROR("Faile to get params num");
-        }
-        if (n.getParam("robot/control_type", control_type))
-        {
-            // ROS_INFO("Got params ontrol_type: %f",SDK_version);
-            
-        }
-        else
-        {
-            ROS_ERROR("Faile to get params control_type");
-        }
+        motor_name = declare_and_get_param<std::string>("robot/CANboard/No_" + std::to_string(_CANboard_num) +
+                                                           "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) +
+                                                           "/motor/motor" + std::to_string(_motor_num) + "/name",
+                                                       "motor" + std::to_string(_motor_num));
+
+        motor_pub_ = node_->create_publisher<livelybot_msg::msg::MotorState>(
+            "/livelybot_real_real/" + motor_name + "_controller/state",
+            rclcpp::QoS(10));
+
+        id = declare_and_get_param<int>(
+            "robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" +
+                std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/id",
+            0);
+        type = declare_and_get_param<int>(
+            "robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" +
+                std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/type",
+            0);
+        num = declare_and_get_param<int>(
+            "robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" +
+                std::to_string(_CANport_num) + "/motor/motor" + std::to_string(_motor_num) + "/num",
+            0);
+        control_type = declare_and_get_param<int>("robot/control_type", 1);
         set_motor_type(type);
         memset(&cmd, 0, sizeof(cmd));
         memset(&data, 0, sizeof(data));
@@ -162,5 +153,32 @@ public:
     motor_pos_val_tqe_rpd_s *return_pos_val_tqe_rpd_p() { return &cmd_int16_5param; }
     size_t return_size_motor_pos_val_tqe_rpd_s() { return sizeof(motor_pos_val_tqe_rpd_s); }
     motor_back_t *get_current_motor_state() { return &data; }
+
+private:
+    template <typename T>
+    T declare_and_get_param(const std::string &name, const T &default_value)
+    {
+        const std::string normalized = normalize_parameter_name(name);
+        if (!node_->has_parameter(normalized))
+        {
+            node_->declare_parameter<T>(normalized, default_value);
+        }
+
+        T value = default_value;
+        if (!node_->get_parameter(normalized, value))
+        {
+            RCLCPP_ERROR(logger_, "Failed to get parameter '%s'", normalized.c_str());
+            return default_value;
+        }
+
+        return value;
+    }
+
+    std::string normalize_parameter_name(const std::string &name) const
+    {
+        std::string normalized = name;
+        std::replace(normalized.begin(), normalized.end(), '/', '.');
+        return normalized;
+    }
 };
 #endif

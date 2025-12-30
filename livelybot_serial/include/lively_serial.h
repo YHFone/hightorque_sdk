@@ -3,8 +3,8 @@
 
 #include "serial_struct.h"
 #include "serial/serial.h"
-#include "ros/ros.h"
 #include "hardware/motor.h"
+#include "rclcpp/rclcpp.hpp"
 // #include "livelybot_serial.h"
 #include <unordered_set>
 
@@ -22,7 +22,6 @@ private:
     std::vector<motor_back_t *> Motor_data;
     std::vector<motor *> Motors;
     std::map<int, motor *> Map_Motors_p;
-    ros::Rate *r;
     int *id;
     uint16_t crc_head;
     // livelybot_serial lv_ser;
@@ -48,14 +47,11 @@ public:
         }
         catch (const std::exception &e)
         {
-            ROS_ERROR_STREAM("Motor Unable to open port "); // 打开串口失败，打印信息
+            RCLCPP_ERROR(rclcpp::get_logger("lively_serial"), "Motor unable to open port %s: %s", _port->c_str(), e.what());
         }
         if (_ser.isOpen())
         {
-            ROS_INFO_STREAM("Motor Serial Port initialized."); // 成功打开串口，打印信息
-        }
-        else
-        {
+            RCLCPP_INFO(rclcpp::get_logger("lively_serial"), "Motor Serial Port initialized: %s", _port->c_str());
         }
         init_flag = true;
         // start receive thread
@@ -79,7 +75,6 @@ public:
     void init_map_motor(std::map<int, motor *> *_Map_Motors_p)
     {
         Map_Motors_p = *_Map_Motors_p;
-        r = new ros::Rate(Map_Motors_p.size()*1100);
     }
     void test_ser_motor()
     {

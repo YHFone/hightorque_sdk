@@ -1,4 +1,4 @@
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 #include "../include/serial_struct.h"
 #include "../include/hardware/robot.h"
 #include <iostream>
@@ -7,15 +7,15 @@
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "my_serial_port");
-    ros::NodeHandle n;
-    ros::Rate r(500);
-    livelybot_serial::robot rb;
-    ROS_INFO("\033[1;32mSTART\033[0m");
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("my_serial_port");
+    rclcpp::Rate rate(500.0);
+    livelybot_serial::robot rb(node.get());
+    RCLCPP_INFO(node->get_logger(), "\033[1;32mSTART\033[0m");
     // ========================== singlethread send =====================
     // rb.test_ser_motor();
     // while (0)
-    while (ros::ok()) // 此用法为逐个电机发送控制指令
+    while (rclcpp::ok()) // 此用法为逐个电机发送控制指令
     {
         // ROS_INFO_STREAM("START");
         /////////////////////////send
@@ -32,7 +32,8 @@ int main(int argc, char **argv)
             // ROS_INFO("ID:%d pos: %8f,vel: %8f,tor: %8f", motor.ID, motor.position, motor.velocity, motor.velocity);
         }
         // ROS_INFO_STREAM("END"); //
-        r.sleep();
+        rclcpp::spin_some(node);
+        rate.sleep();
     }
 
 
@@ -54,6 +55,6 @@ int main(int argc, char **argv)
     //     r.sleep();
     // }
 
-    ros::spin();
+    rclcpp::shutdown();
     return 0;
 }

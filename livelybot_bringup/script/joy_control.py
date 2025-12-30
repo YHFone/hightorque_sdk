@@ -1,49 +1,65 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
 
-import rospy
+import rclpy
+from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
 
-class Teleop:
+class Teleop(Node):
     def __init__(self):
-        rospy.init_node('joy_teleop', anonymous=True)
-        
-        # 从参数服务器获取参数，如果没有设置则使用默认值
-        self.axis_lin_x = rospy.get_param('~axis_linear_x', 1)
-        self.axis_lin_y = rospy.get_param('~axis_linear_y', 0)
-        self.axis_ang = rospy.get_param('~axis_angular', 6)
-        self.vlinear = rospy.get_param('~vel_linear', 0.15)
-        self.vangular = rospy.get_param('~vel_angular', 0.2)
-        self.config_vlinear = rospy.get_param('~config vel',0)
-        self.config_vangular = rospy.get_param('~config vel',1)
-        self.ton = rospy.get_param('~button', 5)
-        
-        # 设置发布者和订阅者
-        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
-        self.sub = rospy.Subscriber('joy', Joy, self.callback)
-    
+        super().__init__('joy_teleop')
+
+        # 声明参数
+        self.declare_parameter('axis_linear_x', 1)
+        self.declare_parameter('axis_linear_y', 0)
+        self.declare_parameter('axis_angular', 6)
+        self.declare_parameter('vel_linear', 0.15)
+        self.declare_parameter('vel_angular', 0.2)
+        self.declare_parameter('config_vel_linear', 0)
+        self.declare_parameter('config_vel_angular', 1)
+        self.declare_parameter('button', 5)
+
+        # 获取参数
+        self.axis_lin_x = self.get_parameter('axis_linear_x').get_parameter_value().integer_value
+        self.axis_lin_y = self.get_parameter('axis_linear_y').get_parameter_value().integer_value
+        self.axis_ang = self.get_parameter('axis_angular').get_parameter_value().integer_value
+        self.vlinear = self.get_parameter('vel_linear').get_parameter_value().double_value
+        self.vangular = self.get_parameter('vel_angular').get_parameter_value().double_value
+        self.config_vlinear = self.get_parameter('config_vel_linear').get_parameter_value().integer_value
+        self.config_vangular = self.get_parameter('config_vel_angular').get_parameter_value().integer_value
+        self.ton = self.get_parameter('button').get_parameter_value().integer_value
+
+        # 发布者和订阅者
+        self.pub = self.create_publisher(Twist, '/cmd_vel', 1)
+        self.sub = self.create_subscription(Joy, 'joy', self.callback, 1)
+
     def callback(self, joy):
         twist = Twist()
-        
+
         if joy.buttons[self.config_vlinear]:
             self.vlinear = joy.axes[4]
-            rospy.loginfo("vlinear: %.3f", self.vlinear)
+            self.get_logger().info(f"vlinear: {self.vlinear:.3f}")
         if joy.buttons[self.config_vangular]:
             self.vangular = joy.axes[4]
-            rospy.loginfo("vangular: %.3f", self.vangular)
+            self.get_logger().info(f"vangular: {self.vangular:.3f}")
 
         if joy.buttons[self.ton]:
-
             twist.linear.x = joy.axes[self.axis_lin_x] * self.vlinear
             twist.linear.y = joy.axes[self.axis_lin_y] * self.vlinear
             twist.angular.z = joy.axes[self.axis_ang] * self.vangular
-            rospy.loginfo("linear x y: %.3f %.3f angular: %.3f", twist.linear.x, twist.linear.y, twist.angular.z)
+            self.get_logger().info(f"linear x y: {twist.linear.x:.3f} {twist.linear.y:.3f} angular: {twist.angular.z:.3f}")
             self.pub.publish(twist)
 
-if __name__ == '__main__':
+def main(args=None):
+    rclpy.init(args=args)
+    teleop = Teleop()
     try:
-        teleop = Teleop()
-        rospy.spin()
-    except rospy.ROSInterruptException:
+        rclpy.spin(teleop)
+    except KeyboardInterrupt:
         pass
+    teleop.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

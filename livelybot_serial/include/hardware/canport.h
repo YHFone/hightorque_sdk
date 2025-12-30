@@ -1,6 +1,11 @@
 #ifndef _CANPORT_H_
 #define _CANPORT_H_
-#include "ros/ros.h"
+#include <algorithm>
+#include <chrono>
+#include <map>
+#include <stdexcept>
+#include <vector>
+#include "rclcpp/rclcpp.hpp"
 #include "motor.h"
 #include <condition_variable>
 #include <thread>
@@ -12,7 +17,8 @@ class canport
 private:
     int motor_num;
     int CANport_num;
-    ros::NodeHandle n;
+    rclcpp::Node * node_;
+    rclcpp::Logger logger_;
     std::vector<motor *> Motors;
     std::map<int, motor *> Map_Motors_p;
     bool sendEnabled;
@@ -29,22 +35,23 @@ private:
     std::vector<int> port_motor_id;
 
 public:
-    canport(int _CANport_num, int _CANboard_num, lively_serial *_ser) : ser(_ser)
+    canport(int _CANport_num, int _CANboard_num, lively_serial *_ser, rclcpp::Node * node)
+        : node_(node), logger_(node ? node->get_logger() : rclcpp::get_logger("livelybot_canport")), ser(_ser)
     {
+        if (node_ == nullptr)
+        {
+            throw std::runtime_error("canport requires a valid rclcpp::Node pointer");
+        }
         canboard_id = _CANboard_num;
         canport_id = _CANport_num;
-        if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor_num", motor_num))
-        {
-            // ROS_INFO("Got params motor_num: %d",motor_num);
-        }
-        else
-        {
-            ROS_ERROR("Faile to get params motor_num");
-        }
+        motor_num = declare_and_get_param<int>(
+            "robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" +
+                std::to_string(_CANport_num) + "/motor_num",
+            0);
 
         if (motor_num_max < motor_num)
         {
-            ROS_ERROR("Too many motors, Supports up to %d motors, but there are actually %d motors", motor_num_max, motor_num);
+            RCLCPP_ERROR(logger_, "Too many motors, Supports up to %d motors, but there are actually %d motors", motor_num_max, motor_num);
             exit(-1);
         }
         
@@ -52,22 +59,19 @@ public:
         for (int i = 1; i <= motor_num; i++)
         {
             int temp_id = 0;
-            if (n.getParam("robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" + std::to_string(_CANport_num) + "/motor/motor" + std::to_string(i) + "/id", temp_id))
+            temp_id = declare_and_get_param<int>(
+                "robot/CANboard/No_" + std::to_string(_CANboard_num) + "_CANboard/CANport/CANport_" +
+                    std::to_string(_CANport_num) + "/motor/motor" + std::to_string(i) + "/id",
+                0);
+            port_motor_id.push_back(temp_id);
+            if (id_max < temp_id)
             {
-                port_motor_id.push_back(temp_id);
-                if (id_max < temp_id)
-                {
-                    id_max = temp_id;
-                }
-            }
-            else
-            {
-                ROS_ERROR("Faile to get params id");
+                id_max = temp_id;
             }
         }
         for (size_t i = 1; i <= motor_num; i++)
         {
-            Motors.push_back(new motor(i, _CANport_num, _CANboard_num, &cdc_tr_message, id_max));
+            Motors.push_back(new motor(i, _CANport_num, _CANboard_num, &cdc_tr_message, id_max, node_));
         }
         for (motor *m : Motors)
         {
@@ -104,7 +108,7 @@ public:
         while (t++ < MAX_DALAY)
         {
             motor_send_2();
-            ros::Duration(0.001).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(1));
             if (port_version >= 2)
             {
                 // ROS_INFO("\033[1;32m ttt %d\033[0m", t);
@@ -114,11 +118,11 @@ public:
 
         if (t < MAX_DALAY)
         {
-            ROS_INFO("\033[1;32mCANboard(%d) version is: %.1fv\033[0m", canboard_id, port_version);
+            RCLCPP_INFO(logger_, "\033[1;32mCANboard(%d) version is: %.1fv\033[0m", canboard_id, port_version);
         }
         else
         {
-            ROS_ERROR("CANboard(%d) CANport(%d) Connection disconnected!!!", canboard_id, canport_id);
+            RCLCPP_ERROR(logger_, "CANboard(%d) CANport(%d) Connection disconnected!!!", canboard_id, canport_id);
         }
 
         return port_version;
@@ -143,7 +147,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.01).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(10));
             num = 0;
             if (mode_flag == MODE_CONF_LOAD)
             {
@@ -165,12 +169,12 @@ public:
 
         if (num == motor_num)
         {
-            ROS_INFO("\033[1;32mSettings have been restored. Initiating motor zero point reset.\033[0m");
+            RCLCPP_INFO(logger_, "\033[1;32mSettings have been restored. Initiating motor zero point reset.\033[0m");
             return 0;
         }
         else 
         {
-            ROS_ERROR("Restoration of settings failed.");
+            RCLCPP_ERROR(logger_, "Restoration of settings failed.");
             return 1;
         }
     }
@@ -194,7 +198,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.01).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(10));
             if (mode_flag == MODE_CONF_LOAD && motors_id.count(id) == 1)
             {
                 return 0;
@@ -222,7 +226,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.001).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(1));
             num = 0;
             if (mode_flag == MODE_RESET_ZERO)
             {
@@ -245,12 +249,12 @@ public:
 
         if (num == motor_num)
         {
-            ROS_INFO("\033[1;32mMotor zero position reset successfully, waiting for the motor to save the settings.\033[0m");
+            RCLCPP_INFO(logger_, "\033[1;32mMotor zero position reset successfully, waiting for the motor to save the settings.\033[0m");
             return 0;
         }
         else 
         {
-            ROS_ERROR("Motor reset to zero position failed.");
+            RCLCPP_ERROR(logger_, "Motor reset to zero position failed.");
             return 1;
         }
         
@@ -275,7 +279,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.001).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(1));
             if (mode_flag == MODE_RESET_ZERO && motors_id.count(id) == 1)
             {
                 return 0;
@@ -329,7 +333,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.001).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(1));
             num = 0;
             if (mode_flag == MODE_CONF_WRITE)
             {
@@ -351,11 +355,11 @@ public:
 
         if (num == motor_num)
         {
-            ROS_INFO("\033[1;32mSettings saved successfully.\033[0m");
+            RCLCPP_INFO(logger_, "\033[1;32mSettings saved successfully.\033[0m");
         }
         else 
         {
-            ROS_INFO("\033[1;32mFailed to save settings.\033[0m");
+            RCLCPP_INFO(logger_, "\033[1;32mFailed to save settings.\033[0m");
             exit(-1);
         }
     }
@@ -378,7 +382,7 @@ public:
         while (t++ < max_delay)
         {
             motor_send_2();
-            ros::Duration(0.001).sleep();
+            rclcpp::sleep_for(std::chrono::milliseconds(1));
             if (mode_flag == MODE_CONF_WRITE && motors_id.count(id) == 1)
             {
                 return 0;
@@ -427,5 +431,32 @@ public:
     int get_motor_num() { return motor_num; }
     int get_canboard_id() { return canboard_id; }
     int get_canport_id() { return canport_id; }
+
+private:
+    template <typename T>
+    T declare_and_get_param(const std::string &name, const T &default_value)
+    {
+        const std::string normalized = normalize_parameter_name(name);
+        if (!node_->has_parameter(normalized))
+        {
+            node_->declare_parameter<T>(normalized, default_value);
+        }
+
+        T value = default_value;
+        if (!node_->get_parameter(normalized, value))
+        {
+            RCLCPP_ERROR(logger_, "Failed to get parameter '%s'", normalized.c_str());
+            return default_value;
+        }
+
+        return value;
+    }
+
+    std::string normalize_parameter_name(const std::string &name) const
+    {
+        std::string normalized = name;
+        std::replace(normalized.begin(), normalized.end(), '/', '.');
+        return normalized;
+    }
 };
 #endif

@@ -1,4 +1,4 @@
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 #include "../include/serial_struct.h"
 #include "../include/hardware/robot.h"
 #include <iostream>
@@ -61,21 +61,22 @@ void writedata2file(std::vector<float>& poss,std::string path)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "test_motor_run");
-    ros::NodeHandle n;
-    ros::Rate r(50);
-    livelybot_serial::robot rb;
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("test_motor_run");
+    rclcpp::Rate rate(50.0);
+    livelybot_serial::robot rb(node.get());
     std::vector<motor_type> type_list{motor_type::_4538, motor_type::_4538, motor_type::_5047_36, motor_type::_5047_36, motor_type::_5047_36, motor_type::_5047_36,
                                       motor_type::_4538, motor_type::_4538, motor_type::_5047_36, motor_type::_5047_36, motor_type::_5047_36, motor_type::_5047_36}; // 124653
-    ROS_INFO("\033[1;32mSTART\033[0m");
+    RCLCPP_INFO(node->get_logger(), "\033[1;32mSTART\033[0m");
     // ========================== singlethread send =====================
     size_t n_motors = 12;
 
     std::ifstream infile("//home//sunteng//HT-MODEL-H-master//walking_data.txt");
     if (!infile)
     {
-        std::cerr << "Unable to open file data.txt" << std::endl;
-        return false;
+        RCLCPP_ERROR(node->get_logger(), "Unable to open file walking_data.txt");
+        rclcpp::shutdown();
+        return 1;
     }
     
 
@@ -86,7 +87,7 @@ int main(int argc, char **argv)
         data.push_back(value);
     }
     infile.close();
-    ROS_INFO("data length:%ld",data.size());
+    RCLCPP_INFO(node->get_logger(), "data length:%zu", data.size());
     size_t count = 0;
 
     for (int i = 0; i < type_list.size(); i++)
@@ -104,7 +105,7 @@ int main(int argc, char **argv)
     // std::vector<size_t> idx_{1, 2, 4, 6, 5, 3, 1, 2, 4, 6, 5, 3};   // 124653
 
     std::vector<float> float_vec(n_motors);
-    while (ros::ok() && count < data.size() / n_motors)             // 此用法为逐个电机发送控制指令
+    while (rclcpp::ok() && count < data.size() / n_motors)             // 此用法为逐个电机发送控制指令
     {
         // std::cout<<"ddd"<<std::endl;
         int idx = 0;
@@ -138,11 +139,13 @@ int main(int argc, char **argv)
             motor_back_t motor;
             motor = *rb.Motors[i]->get_current_motor_state();
             float_vec[i]=motor.position;
-            ROS_INFO_STREAM("ID: " << map_[i] << " Pos: " << motor.position << " torque: " << motor.torque);
+            RCLCPP_INFO(node->get_logger(), "ID: %zu Pos: %.6f torque: %.6f", map_[i], motor.position, motor.torque);
         }
         // writedata2file(float_vec,"//home//sunteng//control_ws//src//livelybot_robot//src//livelybot_serial//data.txt");
-        r.sleep();
+        rclcpp::spin_some(node);
+        rate.sleep();
     }
 
+    rclcpp::shutdown();
     return 0;
 }

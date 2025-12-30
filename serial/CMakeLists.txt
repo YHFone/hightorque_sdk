@@ -1,37 +1,39 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(serial)
 
-# Find catkin
-find_package(catkin REQUIRED)
+find_package(ament_cmake REQUIRED)
 
-# If Linux, add rt and pthread
-set(rt_LIBRARIES rt)
-set(pthread_LIBRARIES pthread)
-catkin_package(
-    LIBRARIES ${PROJECT_NAME}
-    INCLUDE_DIRS include
-    DEPENDS rt pthread
-)
-## Sources
 set(serial_SRCS
     src/serial.cc
-    include/serial/serial.h
-    include/serial/v8stdint.h
+    src/impl/unix.cc
+    src/impl/list_ports/list_ports_linux.cc
 )
-list(APPEND serial_SRCS src/impl/unix.cc)
-list(APPEND serial_SRCS src/impl/list_ports/list_ports_linux.cc)
-## Add serial library
-add_library(${PROJECT_NAME} ${serial_SRCS})
-target_link_libraries(${PROJECT_NAME} rt pthread)
-## Include headers
-include_directories(include)
-## Install executable
+
+add_library(${PROJECT_NAME} SHARED ${serial_SRCS})
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(${PROJECT_NAME}
+    rt
+    pthread
+)
+
 install(TARGETS ${PROJECT_NAME}
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+    EXPORT export_${PROJECT_NAME}
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
-## Install headers
-install(FILES include/serial/serial.h include/serial/v8stdint.h
-  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/serial)
+
+install(DIRECTORY include/
+    DESTINATION include
+)
+
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME})
+ament_export_targets(export_${PROJECT_NAME})
+
+ament_package()
 

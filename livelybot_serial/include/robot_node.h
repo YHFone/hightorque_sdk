@@ -1,5 +1,6 @@
-#include <ros/ros.h>
-#include <sensor_msgs/JointState.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <functional>
 #include "../include/serial_struct.h"
 #include "../include/hardware/robot.h"
 
@@ -15,16 +16,16 @@ namespace livelybot_serial
         _20dof
     };
 
-    class robot_node
+    class robot_node : public rclcpp::Node
     {
     public:
         robot_node()
+            : rclcpp::Node("joint_state_listener"),
+              rb(this)
         {
 
-            ros::NodeHandle private_nh("~");
-  //topic_name & frame_id
-            private_nh.param("dof_type_",     type_,  0);
-            std::cout<<"type is "<< type_<<std::endl;
+            type_ = this->declare_parameter<int>("dof_type_", 0);
+            RCLCPP_INFO(this->get_logger(), "type is %d", type_);
             switch (type_)
             {
             case 12:
@@ -44,13 +45,16 @@ namespace livelybot_serial
             }
 
             jointStateName = "walking_motor_goals";
-            
+
             n_motors = 12;
             rkp = 12.;
             rkd = 0.2;
-            
-            ros::NodeHandle nh;
-            joint_state_sub = nh.subscribe<sensor_msgs::JointState>(jointStateName, 1, &robot_node::jointStateCallback, this);
+
+            using std::placeholders::_1;
+            joint_state_sub = this->create_subscription<sensor_msgs::msg::JointState>(
+                jointStateName,
+                rclcpp::QoS(10),
+                std::bind(&robot_node::jointStateCallback, this, _1));
 
         };
         ~robot_node()
@@ -59,7 +63,7 @@ namespace livelybot_serial
         }
 
         // 回调函数，每当接收到新的JointState消息时就会被调用
-        void jointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
+        void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
         {
             // `msg`包含了关节名称（name）、位置（position）、速度（velocity）和力矩（effort）
             for (size_t i = 0; i < msg->position.size(); ++i)
@@ -70,7 +74,7 @@ namespace livelybot_serial
                 //          msg->position[i],
                 //          msg->velocity[i],
                 //          msg->effort[i]);
-                ROS_INFO_STREAM("Received " <<  msg->position[i]);
+                RCLCPP_INFO(this->get_logger(), "Received %.6f", msg->position[i]);
                 rb.Motors[map_[i]]->fresh_cmd_int16(msg->position[i], 0.0, 0.0, rkp, 0, rkd, 0, 0, 0);
                 
 
@@ -93,7 +97,7 @@ namespace livelybot_serial
         int type_;//12,18,20
         robotType rbt;
         std::string jointStateName;
-        ros::Subscriber joint_state_sub;
+        rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub;
         double rkp, rkd;
         livelybot_serial::robot rb;
         int n_motors;

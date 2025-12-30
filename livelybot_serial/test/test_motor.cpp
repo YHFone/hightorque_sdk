@@ -1,23 +1,23 @@
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 #include "../include/serial_struct.h"
 #include "../include/hardware/robot.h"
+#include <condition_variable>
 #include <iostream>
 #include <thread>
-#include <condition_variable>
 
 #define Robot_motors 12    //机器人电机总数
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "test_motor");
-    ros::NodeHandle n;
-    ros::Rate r(100);
-    livelybot_serial::robot rb;
-    ROS_INFO("\033[1;32mSTART\033[0m");
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("test_motor");
+    rclcpp::Rate rate(100.0);
+    livelybot_serial::robot rb(node.get());
+    RCLCPP_INFO(node->get_logger(), "\033[1;32mSTART\033[0m");
     // ========================== singlethread send =====================
     int cont = 0, i = 0;
     float angle = 0.2;
-    while (ros::ok()) // 此用法为逐个电机发送控制指令
+    while (rclcpp::ok()) // 此用法为逐个电机发送控制指令
     {
         /////////////////////////send
         for (motor *m : rb.Motors)
@@ -45,12 +45,13 @@ int main(int argc, char **argv)
         {
             motor_back_t motor;
             motor = *m->get_current_motor_state();
-            ROS_INFO("ID:%d pos: %8f,vel: %8f,tor: %8f", motor.ID, motor.position, motor.velocity, motor.torque);
+            RCLCPP_INFO(node->get_logger(), "ID:%d pos: %8f,vel: %8f,tor: %8f", motor.ID, motor.position, motor.velocity, motor.torque);
         }
-        r.sleep();
+        rclcpp::spin_some(node);
+        rate.sleep();
     }
 
-    ros::spin();
+    rclcpp::shutdown();
     return 0;
 }
 

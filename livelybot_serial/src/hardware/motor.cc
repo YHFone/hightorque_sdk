@@ -35,7 +35,7 @@ inline int16_t motor::tqe_float2int(float in_data, motor_type motor_type)
     switch (motor_type)
     {
     case motor_type::null:
-        ROS_ERROR("motor type not set,fresh command fault");
+        RCLCPP_ERROR(logger_, "motor type not set,fresh command fault");
         return int16_t();
     case motor_type::_5046:
         return (int16_t)((in_data + 0.07) / 0.00528);
@@ -49,7 +49,7 @@ inline int16_t motor::tqe_float2int(float in_data, motor_type motor_type)
     case motor_type::_4438_32:
         return (int16_t)((in_data + 0.083) / 0.005584f);
     default:
-        ROS_ERROR("motor type setting error");
+        RCLCPP_ERROR(logger_, "motor type setting error");
         return int16_t();
     }
 }
@@ -59,7 +59,7 @@ inline int16_t motor::rkp_float2int(float in_data, motor_type motor_type)
     switch (motor_type)
     {
     case motor_type::null:
-        ROS_ERROR("motor type not set,fresh command fault");
+        RCLCPP_ERROR(logger_, "motor type not set,fresh command fault");
         return int16_t();
     case motor_type::_5046:
         return (int16_t)(in_data * 0x7FF / (my_2pi * 1.6)); // kp~[0,160) max_tau 8Nm
@@ -70,7 +70,7 @@ inline int16_t motor::rkp_float2int(float in_data, motor_type motor_type)
     case motor_type::_5047_9:
         return (int16_t)((in_data * 0x7FF / (my_2pi * 0.165))); // kp~[0,16)  max_tau 4Nm
     default:
-        ROS_ERROR("motor type setting error");
+        RCLCPP_ERROR(logger_, "motor type setting error");
         return int16_t();
     }
 }
@@ -80,7 +80,7 @@ inline int16_t motor::rkd_float2int(float in_data, motor_type motor_type)
     switch (motor_type)
     {
     case motor_type::null:
-        ROS_ERROR("motor type not set,fresh command fault");
+        RCLCPP_ERROR(logger_, "motor type not set,fresh command fault");
         return int16_t();
     case motor_type::_5046:
         return (int16_t)((in_data * 0x7FF / (my_2pi * 0.05))); // kd~[0,5.0)
@@ -91,7 +91,7 @@ inline int16_t motor::rkd_float2int(float in_data, motor_type motor_type)
     case motor_type::_5047_9:
         return (int16_t)((in_data * 0x7FF / (my_2pi * 0.0033))); // kd~[0,0.33)
     default:
-        ROS_ERROR("motor type setting error");
+        RCLCPP_ERROR(logger_, "motor type setting error");
         return int16_t();
     }
 }
@@ -132,12 +132,12 @@ inline int16_t motor::int16_limit(int32_t data)
 {
     if (data >= 32700)
     {
-        ROS_INFO("\033[1;32mPID output has reached the saturation limit.\033[0m");
+        RCLCPP_INFO(logger_, "\033[1;32mPID output has reached the saturation limit.\033[0m");
         return (int16_t)32700;
     }
     else if (data <= -32700)
     {
-        ROS_INFO("\033[1;32mPID output has reached the saturation limit.\033[0m");
+        RCLCPP_INFO(logger_, "\033[1;32mPID output has reached the saturation limit.\033[0m");
         return (int16_t)-32700;
     }
 
@@ -252,7 +252,7 @@ inline float motor::tqe_int2float(int16_t in_data, motor_type type)
     switch (type)
     {
     case (motor_type::null):
-        ROS_ERROR("motor type not set,fresh data fault");
+        RCLCPP_ERROR(logger_, "motor type not set,fresh data fault");
     case (motor_type::_5046):
         return (float)(in_data * 0.005397) - 0.07;
     case (motor_type::_4538):
@@ -309,7 +309,7 @@ void motor::fresh_cmd_int16(float position, float velocity, float torque, float 
         motor::pos_vel_kp_kd(position, velocity, kp, kd);
         break;
     default:
-        ROS_ERROR("Incorrect setting of operation mode.");
+        RCLCPP_ERROR(logger_, "Incorrect setting of operation mode.");
         exit(-3);
         break;
     }
@@ -527,5 +527,8 @@ void motor::fresh_data(int16_t position, int16_t velocity, int16_t torque)
     p_msg.vel = data.velocity = vel_int2float(velocity, pos_vel_type);
     p_msg.tau = data.torque = tqe_int2float(torque, type_);
     // std::cout << "test " << id << ": " << data.position << "  " << data.velocity << "  " << data.torque << std::endl;
-    _motor_pub.publish(p_msg);
+    if (motor_pub_)
+    {
+        motor_pub_->publish(p_msg);
+    }
 }

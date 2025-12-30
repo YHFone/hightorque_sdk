@@ -1,12 +1,19 @@
 #include "../include/lively_serial.h"
+#include "rclcpp/rclcpp.hpp"
+
+namespace
+{
+    rclcpp::Logger kLivelySerialLogger = rclcpp::get_logger("lively_serial");
+}
+
 lively_serial::~lively_serial()
 {
 }
 #define read_by_Byte 1
 void lively_serial::recv()
 {
-    ROS_INFO_STREAM("start thread");
-    while (ros::ok() && init_flag)
+    RCLCPP_INFO(kLivelySerialLogger, "start thread");
+    while (rclcpp::ok() && init_flag)
     {
         _result = _ser.read(2);
         // ROS_INFO("==================================START");
@@ -37,14 +44,14 @@ void lively_serial::recv()
                 }
                 else
                 {
-                    ROS_ERROR("OUT RANGE");
+                    RCLCPP_ERROR(kLivelySerialLogger, "OUT RANGE");
                 }
             }
             else
             {
                 // ROS_INFO("%X %X",cdc_acm_tx_message.crc16,crc_ccitt(0x0000, (const uint8_t *)&cdc_acm_tx_message, sizeof(cdc_acm_tx_message_t) - 2));
                 memset(&cdc_acm_tx_message.motor_back_raw, 0, sizeof(cdc_acm_tx_message_t) - 2);
-                ROS_ERROR("CRC ERROR");
+                RCLCPP_ERROR(kLivelySerialLogger, "CRC ERROR");
             }
         }
         else
@@ -77,7 +84,7 @@ void lively_serial::recv_1for6_42()
     uint16_t CRC16 = 0;
     SOF_t SOF = {0};
     cdc_tr_message_data_s cdc_rx_message_data = {0};
-    while (ros::ok() && init_flag)
+    while (rclcpp::ok() && init_flag)
     {
         _ser.read(&(SOF.head), 1); 
         if (SOF.head == 0xF7)      //  head
