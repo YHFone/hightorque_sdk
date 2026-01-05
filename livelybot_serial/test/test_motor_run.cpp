@@ -119,16 +119,29 @@ private:
         {   
             RCLCPP_INFO(this->get_logger(), "id %d pos %f vel %f tqe %f\n", m->get_current_motor_state()->ID, m->get_current_motor_state()->position, m->get_current_motor_state()->velocity, m->get_current_motor_state()->torque);
         }
-        ankle_inverse_kinematics(0.3, 0, motor0_, motor1_);
-        rb_->Motors[0]->fresh_cmd_int16((float)motor0_, 0, 0, 10, 0, 1, 0, 0, 0);
-        rb_->Motors[1]->fresh_cmd_int16((float)motor1_, 0, 0, 10, 0, 1, 0, 0, 0);       
+        ankle_inverse_kinematics(-0.3, 0, left_motor1_, left_motor0_);
+        ankle_inverse_kinematics(-0.3, 0, right_motor1_, right_motor0_);
+        rb_->Motors[0]->fresh_cmd_int16((float)left_motor0_, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[1]->fresh_cmd_int16((float)left_motor1_, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[6]->fresh_cmd_int16(-(float)right_motor0_, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[7]->fresh_cmd_int16(-(float)right_motor1_, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[2]->fresh_cmd_int16(0.7 - 0.35, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[8]->fresh_cmd_int16(-0.7 + 0.35, 0, 0, 20, 0, 1, 0, 0, 0);       
+        rb_->Motors[3]->fresh_cmd_int16(0.35, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[9]->fresh_cmd_int16(-0.35, 0, 0, 20, 0, 1, 0, 0, 0);      
+        rb_->Motors[4]->fresh_cmd_int16(0, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[5]->fresh_cmd_int16(0, 0, 0, 20, 0, 1, 0, 0, 0);     
+        rb_->Motors[10]->fresh_cmd_int16(0, 0, 0, 20, 0, 1, 0, 0, 0);
+        rb_->Motors[11]->fresh_cmd_int16(0, 0, 0, 20, 0, 1, 0, 0, 0);    
         rb_->motor_send_2();
     }
 
     std::unique_ptr<livelybot_serial::robot> rb_;
     rclcpp::TimerBase::SharedPtr timer_;
-    double motor0_ = 0.0;
-    double motor1_ = 0.0;
+    double left_motor0_ = 0.0;
+    double left_motor1_ = 0.0;
+    double right_motor0_ = 0.0;
+    double right_motor1_ = 0.0;
 };
 
 int main(int argc, char **argv)

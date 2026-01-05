@@ -13,6 +13,7 @@
 #include <libserialport.h>
 #include <dirent.h>
 #include <algorithm>
+#include "motor_struct.h"
 
 namespace livelybot_serial
 {
